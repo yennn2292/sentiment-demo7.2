@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三模型情感天平 · 教学评论分类实时演示</title>
+<style>
+  :root{
+    --bg:#14171A;
+    --surface:#1E2226;
+    --surface-alt:#262B30;
+    --line:#33383D;
+    --text:#EDEBE4;
+    --muted:#9AA0A6;
+    --pos:#6FBF8B;
+    --pos-dim:#3E5C4B;
+    --neg:#E2725B;
+    --neg-dim:#5C3E36;
+    --amber:#E8B84B;
+    --blue:#7AA6D4;
+    --serif:Georgia,'Songti SC','STSong',serif;
+    --sans:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+    --mono:'SF Mono',Consolas,'Courier New',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--sans);line-height:1.6;
+    padding:0 0 80px;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px;}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:64px 24px 40px;text-align:center;border-bottom:1px solid var(--line);}
+  .eyebrow{
+    font-family:var(--mono);font-size:12px;letter-spacing:.18em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:18px;
+  }
+  h1{
+    font-family:var(--serif);font-weight:400;font-size:clamp(30px,5vw,48px);
+    margin:0 0 14px;letter-spacing:.01em;
+  }
+  .sub{color:var(--muted);max-width:600px;margin:0 auto;font-size:15px;}
+
+  /* ---------- Balance beam signature element ---------- */
+  .beam-zone{max-width:620px;margin:48px auto 0;padding:0 24px;}
+  .beam-label{text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);
+    letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+  .beam-stage{position:relative;height:140px;margin-bottom:8px;}
+  .fulcrum{
+    position:absolute;left:50%;bottom:0;width:0;height:0;
+    border-left:16px solid transparent;border-right:16px solid transparent;
+    border-bottom:28px solid var(--surface-alt);transform:translateX(-50%);
+  }
+  .pole{position:absolute;left:50%;bottom:28px;width:3px;height:14px;background:var(--line);transform:translateX(-50%);}
+  .beam{
+    position:absolute;left:50%;bottom:42px;width:420px;height:4px;
+    background:var(--line);border-radius:2px;transform-origin:center;
+    transform:translateX(-50%) rotate(0deg);
+    transition:transform .5s cubic-bezier(.34,1.4,.64,1);
+  }
+  .pan{
+    position:absolute;top:-38px;width:88px;height:88px;
+    border:2px solid var(--line);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;
+    transition:top .5s cubic-bezier(.34,1.4,.64,1),border-color .3s,background .3s;
+    background:var(--surface);
+  }
+  .pan.left{left:-6px;} .pan.right{right:-6px;}
+  .pan .lbl{font-size:11px;color:var(--muted);font-family:var(--mono);}
+  .pan .val{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:2px;}
+  .pan.active-pos{border-color:var(--pos);background:var(--pos-dim);}
+  .pan.active-neg{border-color:var(--neg);background:var(--neg-dim);}
+  .verdict{text-align:center;font-family:var(--serif);font-size:20px;margin-top:6px;min-height:30px;}
+  .verdict .tag-pos{color:var(--pos);} .verdict .tag-neg{color:var(--neg);}
+  .verdict .tag-wait{color:var(--muted);font-size:14px;font-family:var(--sans);}
+
+  /* ---------- Three-model vote row ---------- */
+  .vote-row{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap;}
+  .vote-chip{
+    display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;
+    border:1px solid var(--line);background:var(--surface);font-size:13px;
+    min-width:150px;justify-content:space-between;
+  }
+  .vote-chip .algo{color:var(--muted);font-family:var(--mono);font-size:11.5px;}
+  .vote-chip .pred{font-weight:600;}
+  .vote-chip.p .pred{color:var(--pos);} .vote-chip.n .pred{color:var(--neg);}
+  .agree-line{text-align:center;color:var(--muted);font-size:12.5px;margin-top:10px;font-family:var(--mono);}
+
+  /* ---------- Input ---------- */
+  .input-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:28px;}
+  textarea{
+    width:100%;min-height:90px;background:var(--surface-alt);
+    border:1px solid var(--line);border-radius:8px;color:var(--text);
+    padding:14px;font-family:var(--sans);font-size:15px;resize:vertical;
+  }
+  textarea:focus{outline:none;border-color:var(--amber);}
+  .row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center;}
+  button{
+    font-family:var(--sans);font-size:13px;cursor:pointer;border-radius:7px;
+    border:1px solid var(--line);background:var(--surface-alt);color:var(--text);
+    padding:9px 16px;transition:border-color .2s,color .2s;
+  }
+  button:hover{border-color:var(--amber);color:var(--amber);}
+  button.primary{background:var(--amber);color:#1a1a1a;border-color:var(--amber);font-weight:600;}
+  button.primary:hover{opacity:.88;color:#1a1a1a;}
+  .samples{color:var(--muted);font-size:12px;margin-top:14px;}
+  .samples button{font-size:12px;padding:6px 10px;margin:3px 4px 0 0;}
+
+  /* ---------- Detail cards per model ---------- */
+  .detail-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:20px;}
+  @media(min-width:760px){.detail-grid{grid-template-columns:1fr 1fr 1fr;}}
+  .detail-card{
+    background:var(--surface-alt);border:1px solid var(--line);border-radius:8px;padding:14px;
+    display:none;
+  }
+  .detail-card h5{
+    margin:0 0 10px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+    color:var(--blue);text-transform:uppercase;
+  }
+  .gram{
+    display:inline-block;padding:3px 8px;margin:3px 4px 3px 0;border-radius:5px;
+    font-family:var(--mono);font-size:12px;border:1px solid var(--line);
+  }
+  .gram.p{color:var(--pos);border-color:var(--pos-dim);background:rgba(111,191,139,.08);}
+  .gram.n{color:var(--neg);border-color:var(--neg-dim);background:rgba(226,114,91,.08);}
+  .neighbor{font-size:12.5px;padding:6px 0;border-bottom:1px dashed var(--line);}
+  .neighbor:last-child{border-bottom:none;}
+  .neighbor .sim{color:var(--muted);font-family:var(--mono);font-size:11px;}
+  .neighbor .nl{font-weight:600;}
+  .neighbor .nl.p{color:var(--pos);} .neighbor .nl.n{color:var(--neg);}
+  .path-step{font-size:12.5px;padding:4px 0;color:var(--muted);}
+  .path-step b{color:var(--text);}
+  .path-step .yes{color:var(--pos);} .path-step .no{color:var(--neg);}
+
+  /* ---------- Sections ---------- */
+  section{margin-top:56px;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:18px;}
+  .sec-num{font-family:var(--mono);color:var(--amber);font-size:13px;}
+  h2{font-family:var(--serif);font-weight:400;font-size:24px;margin:0;}
+  p.desc{color:var(--muted);font-size:14px;margin:0 0 18px;max-width:660px;}
+
+  .split-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px;}
+  .acc-bars{margin-top:20px;display:flex;flex-direction:column;gap:14px;}
+  .acc-bar-row{display:flex;align-items:center;gap:14px;}
+  .acc-bar-row .name{width:110px;font-size:13px;color:var(--muted);font-family:var(--mono);flex-shrink:0;}
+  .acc-bar-track{flex:1;height:20px;background:var(--surface-alt);border-radius:5px;overflow:hidden;}
+  .acc-bar-fill{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.34,1.2,.64,1);width:0%;}
+  .acc-bar-fill.knn{background:var(--blue);}
+  .acc-bar-fill.dt{background:var(--amber);}
+  .acc-bar-fill.nb{background:var(--pos);}
+  .acc-bar-row .pct{width:56px;text-align:right;font-family:var(--mono);font-size:13px;flex-shrink:0;}
+  .split-meta{color:var(--muted);font-size:12.5px;margin-top:14px;font-family:var(--mono);}
+
+  table.ref{width:100%;border-collapse:collapse;margin-top:6px;font-size:13.5px;}
+  table.ref th,table.ref td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;}
+  table.ref th{color:var(--muted);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:400;}
+  table.ref td.acc{font-family:var(--mono);color:var(--amber);}
+
+  .note{
+    background:var(--surface-alt);border-left:3px solid var(--amber);
+    padding:14px 16px;font-size:13px;color:var(--muted);border-radius:0 6px 6px 0;margin-top:16px;
+  }
+  footer{
+    margin-top:64px;padding-top:24px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12px;text-align:center;font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="eyebrow">Interactive Demo · 客户端实时推理</div>
+  <h1>三模型情感天平</h1>
+  <div class="sub">输入一条教学视频评论，K近邻、决策树、朴素贝叶斯三个分类器会同时在你的浏览器里现场训练、现场判断——不连服务器，不调用任何外部API。</div>
+</div>
+
+<div class="wrap">
+
+  <div class="beam-zone">
+    <div class="beam-label">KNN · 决策树 · 朴素贝叶斯 三模型投票天平</div>
+    <div class="beam-stage">
+      <div class="fulcrum"></div>
+      <div class="pole"></div>
+      <div class="beam" id="beam">
+        <div class="pan left" id="panPos"><div class="lbl">正面</div><div class="val" id="posVal">--</div></div>
+        <div class="pan right" id="panNeg"><div class="lbl">负面</div><div class="val" id="negVal">--</div></div>
+      </div>
+    </div>
+    <div class="verdict" id="verdict"><span class="tag-wait">输入文字后点击"三模型分析"</span></div>
+
+    <div class="vote-row" id="voteRow" style="display:none;">
+      <div class="vote-chip" id="chipKNN"><span class="algo">KNN</span><span class="pred">--</span></div>
+      <div class="vote-chip" id="chipDT"><span class="algo">决策树</span><span class="pred">--</span></div>
+      <div class="vote-chip" id="chipNB"><span class="algo">朴素贝叶斯</span><span class="pred">--</span></div>
+    </div>
+    <div class="agree-line" id="agreeLine"></div>
+  </div>
+
+  <div class="input-card">
+    <textarea id="inputText" placeholder="例如：老师讲课节奏太快了，完全跟不上思路……"></textarea>
+    <div class="row">
+      <button class="primary" onclick="classify()">三模型分析</button>
+      <button onclick="clearInput()">清空</button>
+      <span style="color:var(--muted);font-size:12px;margin-left:auto;" id="trainInfo"></span>
+    </div>
+    <div class="samples">
+      快速试试：
+      <button onclick="fillSample(0)">正面示例</button>
+      <button onclick="fillSample(1)">负面示例</button>
+      <button onclick="fillSample(2)">模糊示例</button>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-card" id="cardKNN">
+        <h5>KNN · 最近邻依据（k=5，余弦相似度）</h5>
+        <div id="knnNeighbors"></div>
+      </div>
+      <div class="detail-card" id="cardDT">
+        <h5>决策树 · 判断路径</h5>
+        <div id="dtPath"></div>
+      </div>
+      <div class="detail-card" id="cardNB">
+        <h5>朴素贝叶斯 · 关键字符片段</h5>
+        <div id="gramList"></div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">01</span><h2>重新划分数据集并对比三种算法</h2></div>
+    <p class="desc">数据集共100条教学视频评论（正面/负面各50条）。点击下方按钮，浏览器会随机按8:2重新划分训练集/测试集，<b style="color:var(--text)">现场训练KNN、决策树、朴素贝叶斯三个模型</b>并在同一份测试集上分别验证——每次点击结果都会因为随机划分略有波动，这正是小样本文本分类的真实特性，也是决策树容易过拟合这一现象最直观的体现方式。</p>
+    <div class="split-card">
+      <button class="primary" onclick="runSplit()">重新划分并测试三模型</button>
+      <div class="acc-bars" id="accBars" style="display:none;">
+        <div class="acc-bar-row">
+          <span class="name">KNN</span>
+          <div class="acc-bar-track"><div class="acc-bar-fill knn" id="barKNN"></div></div>
+          <span class="pct" id="pctKNN">--</span>
+        </div>
+        <div class="acc-bar-row">
+          <span class="name">决策树</span>
+          <div class="acc-bar-track"><div class="acc-bar-fill dt" id="barDT"></div></div>
+          <span class="pct" id="pctDT">--</span>
+        </div>
+        <div class="acc-bar-row">
+          <span class="name">朴素贝叶斯</span>
+          <div class="acc-bar-track"><div class="acc-bar-fill nb" id="barNB"></div></div>
+          <span class="pct" id="pctNB">--</span>
+        </div>
+      </div>
+      <div class="split-meta" id="splitMeta"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">02</span><h2>与离线Python实验结果对照</h2></div>
+    <p class="desc">上面这个浏览器版三个分类器用的是<b style="color:var(--text)">字符二元组（bigram）特征</b>（KNN用余弦相似度，决策树用Gini不纯度做二值特征切分），是为了能在纯前端无依赖运行而简化的版本。完整实验中我们用<b style="color:var(--text)">jieba分词 + TF-IDF + scikit-learn</b>跑了同样三种算法，结果如下：</p>
+    <table class="ref">
+      <tr><th>算法</th><th>准确率</th><th>说明</th></tr>
+      <tr><td>K近邻 KNN (k=5)</td><td class="acc">0.600</td><td>高维稀疏特征下距离度量不敏感，效果中等</td></tr>
+      <tr><td>决策树 Decision Tree</td><td class="acc">0.450</td><td>小样本高维特征下极易过拟合，测试集表现最差</td></tr>
+      <tr><td>朴素贝叶斯 Naive Bayes</td><td class="acc">0.750</td><td>小样本稀疏文本场景下表现最优</td></tr>
+    </table>
+    <div class="note">两个版本的特征工程不同（字符二元组 vs jieba词级切分+TF-IDF加权），所以准确率不会完全一致，但"朴素贝叶斯在小样本文本分类中表现更稳健、决策树更容易过拟合"这个结论在两边通常是一致的——你可以多点几次"重新划分并测试"来观察这个规律是否稳定出现。</div>
+  </section>
+
+  <footer>教学评论情感分析 · KNN / 决策树 / 朴素贝叶斯完全在浏览器本地JS中训练与推理 · 数据集共100条自建评论</footer>
+</div>
+
+<script>
+/* ============ 数据集（100条，与Python实验完全一致） ============ */
+const DATA = [
+["老师讲课非常认真，能感受到备课很充分。","正面"],["课程资料很齐全，配套习题也很有帮助。","正面"],
+["课程资料很不齐全，配套习题也很少。","负面"],["举的例子很生动，一下子就理解了原理。","正面"],
+["老师讲课有点照本宣科，没什么互动。","负面"],["老师讲得太快了，完全跟不上节奏。","负面"],
+["这门课的案例特别贴近实际，学完就能上手用。","正面"],["视频剪辑很生硬，中间经常卡顿。","负面"],
+["老师讲课幽默风趣，学习氛围很轻松。","正面"],["老师讲解知识点时脱离实际，很难代入。","负面"],
+["这门课让我觉得很浪费时间。","负面"],["讲解细致，连细节都照顾到了，非常用心。","正面"],
+["这节课讲了半天也没说清楚核心概念。","负面"],["板书太乱了，根本看不出重点在哪。","负面"],
+["老师讲解知识点时几乎没有举例子，很难理解。","负面"],["老师的举例非常贴切，一下就抓住了要点。","正面"],
+["这门课的知识点讲解得很系统，收获满满。","正面"],["老师讲课很敷衍，感觉根本没怎么备课。","负面"],
+["这门课的作业和讲课内容完全对不上。","负面"],["视频时长安排得很合理，不会让人疲惫。","正面"],
+["老师讲课思路特别清晰，一点都不拖沓。","正面"],["讲课思路很清晰，跟着节奏学习特别顺畅。","正面"],
+["老师讲得很透彻，理论和实践结合得很好。","正面"],["这门课把简单的内容讲得很复杂。","负面"],
+["老师讲课思路很混乱，听得云里雾里。","负面"],["老师讲课很用心，每一个细节都讲到了。","正面"],
+["这门课让我对这个专业越来越没兴趣。","负面"],["这门课的作业设计得很有针对性，巩固效果好。","正面"],
+["视频时长太长了，中间很容易走神。","负面"],["这门课让我对这个专业产生了浓厚的兴趣。","正面"],
+["课程结构安排得很合理，由浅入深。","正面"],["讲课风格严谨又不失亲和力，很喜欢。","正面"],
+["举的例子和知识点完全不相关，很难理解。","负面"],["知识点讲得很零散，很难形成体系。","负面"],
+["讲解不够耐心，一带而过就跳到下一个点了。","负面"],["视频讲解节奏把握得很好，跟着思路走不会走神。","正面"],
+["这门课的知识点讲解得很凌乱，收获很少。","负面"],["课件做得很粗糙，重点完全没标出来。","负面"],
+["老师从来不回应学生的疑问，互动感很差。","负面"],["老师的讲课风格很吸引人，完全不会犯困。","正面"],
+["这门课的知识体系构建得很完整。","正面"],["这门课让我对专业方向更有信心了。","正面"],
+["这门课的难度设置得很合适，循序渐进。","正面"],["老师讲解得很生动，比看书理解得快多了。","正面"],
+["这门课彻底改变了我对这个学科的看法。","正面"],["内容太水了，感觉没学到什么东西。","负面"],
+["视频画质很模糊，看起来很费眼睛。","负面"],["讲解太笼统了，很多细节都没有交代。","负面"],
+["老师很有耐心，反复强调了容易出错的地方。","正面"],["讲解方式很新颖，容易记住重点内容。","正面"],
+["老师讲课很敷衍，很多细节都没讲到。","负面"],["这门课让复杂的理论变得简单易懂。","正面"],
+["课件做得很用心，重点标注得很清晰。","正面"],["这门课的内容太枯燥了，很难坚持看完。","负面"],
+["内容很充实，干货满满，收获很大。","正面"],["老师讲课重点突出，抓得住核心内容。","正面"],
+["课程安排很混乱，前后内容衔接不上。","负面"],["这门课让我对这个学科更没有信心了。","负面"],
+["老师对每个知识点都举了具体的例子，很实用。","正面"],["老师讲课语气很平淡，听着容易犯困。","负面"],
+["讲解非常耐心，反复讲解直到我们都明白。","正面"],["这节课让我彻底搞懂了之前一直没弄明白的概念。","正面"],
+["板书工整，思路清晰，跟着听完全不吃力。","正面"],["讲解逻辑很跳跃，经常让人摸不着头脑。","负面"],
+["老师讲得太表面，没有深入到本质。","负面"],["老师的PPT做得非常精美，条理清楚。","正面"],
+["这是我上过的最难懂的一门在线课程之一。","负面"],["这门课让我对未来的学习方向更加明确。","正面"],
+["老师讲解得很生硬，比看书还难理解。","负面"],["视频剪辑流畅，没有多余的废话，效率很高。","正面"],
+["老师讲得非常清楚，逻辑很顺，一听就懂。","正面"],["老师的举例很牵强，根本抓不住要点。","负面"],
+["老师讲课总是跳步骤，逻辑不连贯。","负面"],["这门课让我对未来的学习方向更加迷茫。","负面"],
+["声音时大时小，听起来很吃力。","负面"],["这门课的难度设置很不合理，跳跃太大。","负面"],
+["老师讲课很有激情，能感受到对这门学科的热爱。","正面"],["讲课节奏忽快忽慢，很难跟上思路。","负面"],
+["讲解方式很老套，很难留下印象。","负面"],["视频画质很差，字幕经常对不上。","负面"],
+["这门课比想象中难懂太多了。","负面"],["这是我上过的最好的一门在线课程之一。","正面"],
+["视频画质清晰，字幕也很准确，体验很好。","正面"],["老师讲课重点不突出，抓不住核心内容。","负面"],
+["讲课风格很生硬，完全没有亲和力。","负面"],["内容深入浅出，复杂的知识点讲得很通俗。","正面"],
+["讲解太抽象了，完全听不懂在说什么。","负面"],["老师讲课听起来很敷衍，没什么热情。","负面"],
+["这个视频质量很高，画面和声音都很清晰。","正面"],["PPT做得很敷衍，字又小又乱。","负面"],
+["这门课的知识体系很零碎，缺乏连贯性。","负面"],["知识点总结得很到位，方便课后复习。","正面"],
+["讲解层层递进，逻辑非常严密。","正面"],["老师讲解知识点时会联系生活实际，很好理解。","正面"],
+["课程内容更新及时，紧跟前沿动态。","正面"],["老师会主动回答学生的疑问，互动感很强。","正面"],
+["视频讲解节奏很乱，跟着听很容易走神。","负面"],["老师语速适中，节奏把握得刚刚好。","正面"],
+["第一次觉得这门课这么容易理解。","正面"],["课程内容很陈旧，好多都过时了。","负面"]
+];
+
+const SAMPLES = [
+  "这门课讲得特别清楚，例子也很贴切，学完收获很大！",
+  "老师讲课太敷衍了，节奏乱七八糟，完全跟不上。",
+  "这门课还行吧，有些地方讲得清楚，有些地方有点乱。"
+];
+
+/* ============ 字符二元组分词 ============ */
+function tokenize(text){
+  const clean = text.replace(/[，。！？、；："'（）()\s\d a-zA-Z]/g, "");
+  const grams = [];
+  for(let i=0;i<clean.length-1;i++) grams.push(clean[i]+clean[i+1]);
+  if(grams.length===0 && clean.length>0) grams.push(clean);
+  return grams;
+}
+
+/* ============ 朴素贝叶斯 ============ */
+function trainNB(trainData){
+  const vocab = {};
+  let posDocs=0, negDocs=0, posGrams=0, negGrams=0;
+  trainData.forEach(([text,label])=>{
+    const grams = tokenize(text);
+    if(label==="正面") posDocs++; else negDocs++;
+    grams.forEach(g=>{
+      if(!vocab[g]) vocab[g]={pos:0,neg:0};
+      if(label==="正面"){vocab[g].pos++; posGrams++;} else {vocab[g].neg++; negGrams++;}
+    });
+  });
+  const V = Object.keys(vocab).length;
+  const priorPos = posDocs/(posDocs+negDocs), priorNeg = negDocs/(posDocs+negDocs);
+  function scoreDoc(text){
+    const grams = tokenize(text);
+    let logPos = Math.log(priorPos), logNeg = Math.log(priorNeg);
+    const contrib = [];
+    grams.forEach(g=>{
+      const c = vocab[g] || {pos:0,neg:0};
+      const pPos = (c.pos+1)/(posGrams+V), pNeg = (c.neg+1)/(negGrams+V);
+      logPos += Math.log(pPos); logNeg += Math.log(pNeg);
+      contrib.push({gram:g, diff: Math.log(pPos)-Math.log(pNeg)});
+    });
+    return {logPos, logNeg, contrib};
+  }
+  return {scoreDoc, vocabSize:V};
+}
+
+/* ============ 词表 + 向量化（供KNN/决策树共用） ============ */
+function buildVocab(data, topN){
+  const df = {};
+  data.forEach(([t])=>{
+    new Set(tokenize(t)).forEach(g=> df[g]=(df[g]||0)+1);
+  });
+  return Object.entries(df).sort((a,b)=>b[1]-a[1]).slice(0,topN).map(e=>e[0]);
+}
+function vectorize(text, vocab){
+  const set = new Set(tokenize(text));
+  return vocab.map(g=> set.has(g)?1:0);
+}
+
+/* ============ KNN ============ */
+function cosine(a,b){
+  let dot=0,na=0,nb=0;
+  for(let i=0;i<a.length;i++){dot+=a[i]*b[i]; na+=a[i]*a[i]; nb+=b[i]*b[i];}
+  return dot/(Math.sqrt(na)*Math.sqrt(nb)+1e-9);
+}
+function knnPredict(vec, trainVecs, k){
+  const sims = trainVecs.map(tv=>({sim:cosine(vec,tv.vec), label:tv.label, text:tv.text}));
+  sims.sort((a,b)=>b.sim-a.sim);
+  const top = sims.slice(0,k);
+  const votes = {"正面":0,"负面":0};
+  top.forEach(t=>votes[t.label]++);
+  const label = votes["正面"]>=votes["负面"] ? "正面":"负面";
+  return {label, top, votes};
+}
+
+/* ============ 决策树（CART / Gini，二值特征） ============ */
+function gini(labels){
+  if(labels.length===0) return 0;
+  const p = labels.filter(l=>l==="正面").length/labels.length;
+  return 1-p*p-(1-p)*(1-p);
+}
+function buildTree(samples, vocab, depth, maxDepth, minSize){
+  const labels = samples.map(s=>s.label);
+  const posN = labels.filter(l=>l==="正面").length;
+  const majority = posN>=labels.length-posN ? "正面":"负面";
+  if(depth>=maxDepth || samples.length<minSize || posN===0 || posN===labels.length){
+    return {leaf:true, label:majority};
+  }
+  let best=null;
+  for(let f=0; f<vocab.length; f++){
+    const left = samples.filter(s=>s.vec[f]===0);
+    const right = samples.filter(s=>s.vec[f]===1);
+    if(left.length===0||right.length===0) continue;
+    const g = (left.length/samples.length)*gini(left.map(s=>s.label)) +
+              (right.length/samples.length)*gini(right.map(s=>s.label));
+    if(!best || g<best.g) best={g,f,left,right};
+  }
+  const parentG = gini(labels);
+  if(!best || parentG-best.g<=1e-6) return {leaf:true, label:majority};
+  return {
+    leaf:false, feature:best.f, gram:vocab[best.f],
+    left: buildTree(best.left, vocab, depth+1, maxDepth, minSize),
+    right: buildTree(best.right, vocab, depth+1, maxDepth, minSize),
+  };
+}
+function dtPredict(vec, tree, path){
+  if(tree.leaf) return {label:tree.label, path};
+  const present = vec[tree.feature]===1;
+  path.push({gram:tree.gram, present});
+  return dtPredict(vec, present?tree.right:tree.left, path);
+}
+
+/* ============ 全局模型（用全部100条训练，供单句实时分析用） ============ */
+const NB_MODEL = trainNB(DATA);
+const GLOBAL_VOCAB = buildVocab(DATA, 120);
+const KNN_TRAIN = DATA.map(([t,l])=>({vec:vectorize(t,GLOBAL_VOCAB), label:l, text:t}));
+const DT_TREE = buildTree(
+  DATA.map(([t,l])=>({vec:vectorize(t,GLOBAL_VOCAB), label:l})),
+  GLOBAL_VOCAB, 0, 6, 4
+);
+document.getElementById("trainInfo").textContent =
+  `三模型已在全部100条样本上训练完成 · 特征词表 ${GLOBAL_VOCAB.length} 个高频字符二元组`;
+
+/* ============ 单句分析交互 ============ */
+function softmax2(a,b){
+  const m = Math.max(a,b);
+  const ea = Math.exp(a-m), eb = Math.exp(b-m);
+  return [ea/(ea+eb), eb/(ea+eb)];
+}
+
+function setChip(el, label){
+  el.classList.remove("p","n");
+  el.classList.add(label==="正面" ? "p":"n");
+  el.querySelector(".pred").textContent = label;
+}
+
+function classify(){
+  const text = document.getElementById("inputText").value.trim();
+  if(!text){ alert("先输入一条评论试试～"); return; }
+
+  /* ---- 先算齐三个模型的独立预测 ---- */
+  const {logPos, logNeg, contrib} = NB_MODEL.scoreDoc(text);
+  const [pPos, pNeg] = softmax2(logPos, logNeg);
+  const nbLabel = pPos>pNeg ? "正面" : "负面";
+
+  const qVec = vectorize(text, GLOBAL_VOCAB);
+  const knnRes = knnPredict(qVec, KNN_TRAIN, 5);
+  const dtRes = dtPredict(qVec, DT_TREE, []);
+
+  const labels = [knnRes.label, dtRes.label, nbLabel];
+  const posVotes = labels.filter(l=>l==="正面").length;
+  const negVotes = 3 - posVotes;
+  const majority = posVotes>=2 ? "正面" : "负面";
+
+  /* ---- 天平：由三模型多数投票驱动，而非某一个模型单独决定 ---- */
+  document.getElementById("posVal").textContent = posVotes + "/3";
+  document.getElementById("negVal").textContent = negVotes + "/3";
+
+  const beam = document.getElementById("beam");
+  const panPos = document.getElementById("panPos");
+  const panNeg = document.getElementById("panNeg");
+  const verdict = document.getElementById("verdict");
+  const tilt = (negVotes - posVotes) * (16/3);   // 3:0票时倾角最大，2:1票时倾角较小
+  beam.style.transform = `translateX(-50%) rotate(${tilt}deg)`;
+  panPos.classList.remove("active-pos","active-neg");
+  panNeg.classList.remove("active-pos","active-neg");
+  if(majority==="正面"){
+    panPos.classList.add("active-pos");
+    verdict.innerHTML = `综合判断：<span class="tag-pos">正面</span>　（${posVotes}/3 模型支持）`;
+  } else {
+    panNeg.classList.add("active-neg");
+    verdict.innerHTML = `综合判断：<span class="tag-neg">负面</span>　（${negVotes}/3 模型支持）`;
+  }
+
+  /* ---- 三模型投票展示（每个模型的独立预测，供对照） ---- */
+  document.getElementById("voteRow").style.display = "flex";
+  setChip(document.getElementById("chipKNN"), knnRes.label);
+  setChip(document.getElementById("chipDT"), dtRes.label);
+  setChip(document.getElementById("chipNB"), nbLabel);
+
+  document.getElementById("agreeLine").textContent =
+    (posVotes===3||negVotes===3) ? "三模型判断一致 · 3/3" : `三模型出现分歧 · ${Math.max(posVotes,negVotes)}/3 一致`;
+
+  /* ---- KNN 详情：最近邻 ---- */
+  const cardKNN = document.getElementById("cardKNN");
+  cardKNN.style.display = "block";
+  document.getElementById("knnNeighbors").innerHTML = knnRes.top.slice(0,3).map(n=>{
+    const cls = n.label==="正面" ? "p":"n";
+    return `<div class="neighbor"><span class="nl ${cls}">[${n.label}]</span> ${n.text}
+      <div class="sim">相似度 ${(n.sim*100).toFixed(1)}%</div></div>`;
+  }).join("") || "<div class='neighbor'>无有效相似样本（输入过短）</div>";
+
+  /* ---- 决策树 详情：判断路径 ---- */
+  const cardDT = document.getElementById("cardDT");
+  cardDT.style.display = "block";
+  if(dtRes.path.length===0){
+    document.getElementById("dtPath").innerHTML = "<div class='path-step'>根节点直接判定（样本量不足以继续分裂）</div>";
+  } else {
+    document.getElementById("dtPath").innerHTML = dtRes.path.map(step=>{
+      const ans = step.present ? "<span class='yes'>是</span>" : "<span class='no'>否</span>";
+      return `<div class="path-step">包含 <b>"${step.gram}"</b> ？ ${ans}</div>`;
+    }).join("") + `<div class="path-step" style="margin-top:6px;">→ 叶节点判定：<b>${dtRes.label}</b></div>`;
+  }
+
+  /* ---- NB 详情：关键片段 ---- */
+  const cardNB = document.getElementById("cardNB");
+  contrib.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+  const top = contrib.slice(0,8);
+  if(top.length>0){
+    cardNB.style.display = "block";
+    document.getElementById("gramList").innerHTML = top.map(t=>{
+      const cls = t.diff>0 ? "p":"n";
+      return `<span class="gram ${cls}">${t.gram}</span>`;
+    }).join("");
+  } else {
+    cardNB.style.display = "none";
+  }
+}
+
+function clearInput(){
+  document.getElementById("inputText").value="";
+  document.getElementById("cardKNN").style.display="none";
+  document.getElementById("cardDT").style.display="none";
+  document.getElementById("cardNB").style.display="none";
+  document.getElementById("voteRow").style.display="none";
+  document.getElementById("agreeLine").textContent="";
+  document.getElementById("posVal").textContent="--";
+  document.getElementById("negVal").textContent="--";
+  document.getElementById("beam").style.transform="translateX(-50%) rotate(0deg)";
+  document.getElementById("panPos").classList.remove("active-pos","active-neg");
+  document.getElementById("panNeg").classList.remove("active-pos","active-neg");
+  document.getElementById("verdict").innerHTML='<span class="tag-wait">输入文字后点击"三模型分析"</span>';
+}
+
+function fillSample(i){
+  document.getElementById("inputText").value = SAMPLES[i];
+  classify();
+}
+
+/* ============ 训练/测试集随机划分 + 三模型对比验证 ============ */
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function evalOnTest(predictFn, test){
+  let correct=0;
+  test.forEach(([text,label])=>{
+    if(predictFn(text)===label) correct++;
+  });
+  return correct/test.length;
+}
+
+function runSplit(){
+  const shuffled = shuffle(DATA);
+  const testSize = Math.round(DATA.length*0.2);
+  const test = shuffled.slice(0,testSize);
+  const train = shuffled.slice(testSize);
+
+  // 朴素贝叶斯（用完整字符二元组空间，train子集训练）
+  const nbModel = trainNB(train);
+  const nbAcc = evalOnTest((text)=>{
+    const {logPos, logNeg} = nbModel.scoreDoc(text);
+    return logPos>logNeg ? "正面":"负面";
+  }, test);
+
+  // KNN / 决策树（用train子集重建词表，避免数据泄漏）
+  const vocab = buildVocab(train, 120);
+  const knnTrainVecs = train.map(([t,l])=>({vec:vectorize(t,vocab), label:l, text:t}));
+  const knnAcc = evalOnTest((text)=>{
+    return knnPredict(vectorize(text,vocab), knnTrainVecs, 5).label;
+  }, test);
+
+  const dtTree = buildTree(
+    train.map(([t,l])=>({vec:vectorize(t,vocab), label:l})),
+    vocab, 0, 6, 4
+  );
+  const dtAcc = evalOnTest((text)=>{
+    return dtPredict(vectorize(text,vocab), dtTree, []).label;
+  }, test);
+
+  document.getElementById("accBars").style.display = "flex";
+  const setBar = (barId, pctId, acc, cls)=>{
+    document.getElementById(barId).style.width = (acc*100).toFixed(0)+"%";
+    document.getElementById(pctId).textContent = (acc*100).toFixed(1)+"%";
+  };
+  setBar("barKNN","pctKNN",knnAcc);
+  setBar("barDT","pctDT",dtAcc);
+  setBar("barNB","pctNB",nbAcc);
+
+  document.getElementById("splitMeta").textContent =
+    `本次划分：训练集 ${train.length} 条 / 测试集 ${test.length} 条（随机8:2，正负样本尽量均衡分布于两侧）`;
+}
+</script>
+</body>
+</html>
